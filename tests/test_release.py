@@ -1,4 +1,5 @@
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -10,11 +11,11 @@ from scripts.check_release import project_versions, validate_release
 def test_release_versions_are_aligned() -> None:
     versions = project_versions()
     assert versions == {
-        "pyproject.toml": "0.1.0",
-        "yaysafe/__init__.py": "0.1.0",
-        "PKGBUILD": "0.1.0",
+        "pyproject.toml": "0.1.1",
+        "yaysafe/__init__.py": "0.1.1",
+        "PKGBUILD": "0.1.1",
     }
-    assert validate_release("v0.1.0") == "0.1.0"
+    assert validate_release("v0.1.1") == "0.1.1"
 
 
 def test_release_tag_mismatch_is_rejected(tmp_path: Path) -> None:
@@ -52,3 +53,12 @@ def test_github_actions_are_pinned_to_commits() -> None:
         references = uses_pattern.findall(workflow.read_text(encoding="utf-8"))
         assert references
         assert all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in references)
+
+
+def test_install_script_is_executable_valid_bash() -> None:
+    root = Path(__file__).resolve().parents[1]
+    installer = root / "install.sh"
+    assert installer.stat().st_mode & 0o111
+    subprocess.run(["bash", "-n", str(installer)], check=True)
+    result = subprocess.run([str(installer), "--help"], check=True, capture_output=True, text=True)
+    assert "Install yaysafe from this source checkout" in result.stdout

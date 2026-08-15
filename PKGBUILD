@@ -1,5 +1,5 @@
 pkgname=yaysafe
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc='Experimental security review wrapper for yay and AUR packages'
 arch=('any')

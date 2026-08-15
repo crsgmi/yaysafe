@@ -97,13 +97,17 @@ Arch Linux is the primary target because yaysafe is designed around `yay` and th
 ```bash
 git clone https://github.com/crsgmi/yaysafe.git
 cd yaysafe
-python -m pip install .
+./install.sh
 ```
 
-For an isolated installation:
+The installer uses `pipx` when available and otherwise creates an isolated user virtual
+environment. It does not install into the system Python environment.
+
+Manual alternatives:
 
 ```bash
 pipx install .
+python -m pip install .
 ```
 
 Verify the installation:
