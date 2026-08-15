@@ -1,0 +1,5 @@
+pkgbase = install-hook-package
+	pkgver = 1
+	install = install-hook-package.install
+
+pkgname = install-hook-package

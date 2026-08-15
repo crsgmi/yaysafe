@@ -1,0 +1,6 @@
+pkgbase = normal-git-package
+	pkgver = r1.abcdef
+	source = git+https://github.com/example/normal.git
+	b2sums = SKIP
+
+pkgname = normal-git-package

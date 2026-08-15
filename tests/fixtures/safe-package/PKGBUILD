@@ -1,0 +1,20 @@
+pkgname=safe-package
+pkgver=1.0
+pkgrel=1
+pkgdesc='A harmless example program'
+arch=('x86_64')
+url='https://github.com/example/safe-package'
+license=('MIT')
+source=("https://github.com/example/safe-package/archive/v${pkgver}.tar.gz")
+sha256sums=('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')
+
+build() {
+  cd "$srcdir/$pkgname-$pkgver"
+  make
+}
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  install -Dm755 safe-package "$pkgdir/usr/bin/safe-package"
+  install -Dm644 safe-package.service "$pkgdir/usr/lib/systemd/system/safe-package.service"
+  rm -rf "$pkgdir/usr/share/safe-package/examples"
+}

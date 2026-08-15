@@ -1,0 +1,6 @@
+pkgbase = suspicious-package
+	pkgver = 1.0
+	source = https://github.com/example/suspicious/archive/v1.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = suspicious-package

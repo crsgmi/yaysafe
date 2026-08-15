@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest a focused improvement to yaysafe.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What security, usability, or packaging problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain the expected CLI behavior and security tradeoffs.
+    validations:
+      required: true

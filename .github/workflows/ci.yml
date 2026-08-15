@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install development tools
+        run: python -m pip install -e '.[dev]' 'build>=1.2,<2'
+
+      - name: Validate release metadata
+        run: python scripts/check_release.py
+
+      - name: Check formatting
+        run: python -m ruff format --check .
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Type check
+        run: python -m mypy yaysafe
+
+      - name: Test
+        run: python -m pytest
+
+      - name: Validate tag version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: python scripts/check_release.py "${GITHUB_REF_NAME}"
+
+      - name: Build distributions
+        if: matrix.python-version == '3.14'
+        run: python -m build
+
+      - name: Retain tagged release artifacts
+        if: matrix.python-version == '3.14' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: yaysafe-${{ github.ref_name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30

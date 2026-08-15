@@ -1,0 +1,45 @@
+name: Bug report
+description: Report incorrect behavior or a false positive/negative without sensitive details.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report exploitable security vulnerabilities here. Use the private security report link instead.
+  - type: input
+    id: version
+    attributes:
+      label: yaysafe version
+      description: Output from `yaysafe --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Include a sanitized, minimal reproducer. Remove API keys, usernames, and private paths.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating-system/package-manager environment, yay, Python, LM endpoint implementation/model, and relevant redacted config.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials and private package contents from this report.
+          required: true
+        - label: This report does not contain an undisclosed exploitable vulnerability.
+          required: true

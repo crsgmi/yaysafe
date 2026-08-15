@@ -1,0 +1,15 @@
+pkgname=normal-git-package
+pkgver=r1.abcdef
+pkgrel=1
+pkgdesc='Normal VCS package'
+url='https://github.com/example/normal'
+source=('git+https://github.com/example/normal.git')
+b2sums=('SKIP')
+
+pkgver() {
+  cd "$srcdir/normal"
+  git describe --long --tags
+}
+package() {
+  install -Dm755 "$srcdir/normal/app" "$pkgdir/usr/bin/normal"
+}

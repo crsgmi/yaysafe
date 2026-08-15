@@ -1,0 +1,4 @@
+pkgbase = malicious-package
+	pkgver = 1
+
+pkgname = malicious-package

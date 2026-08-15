@@ -1,0 +1,10 @@
+pkgname=install-hook-package
+pkgver=1
+pkgrel=1
+install=install-hook-package.install
+source=()
+sha256sums=()
+
+package() {
+  install -Dm644 app.service "$pkgdir/usr/lib/systemd/system/app.service"
+}
