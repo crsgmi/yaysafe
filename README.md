@@ -92,6 +92,8 @@ Arch Linux is the primary target because yaysafe is designed around `yay` and th
 
 ## Installation
 
+See [install.md](install.md) for the shortest installation instructions.
+
 ### From source
 
 ```bash
