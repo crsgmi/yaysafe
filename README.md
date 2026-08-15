@@ -1,3 +1,7 @@
+# AI DISCLAIMER
+
+yaysafe is, in fact vibecoded. This is just a weekend project I found interesting. If you have any problems, please create an issue and I will look into it!
+
 # yaysafe
 
 Security review for AUR packages before installation.
