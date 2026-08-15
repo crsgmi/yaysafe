@@ -37,9 +37,10 @@ def test_public_metadata_is_transparently_experimental() -> None:
 
     assert "Development Status :: 4 - Beta" in classifiers
     assert all("Production/Stable" not in item for item in classifiers)
-    assert "vibecoded" in readme
+    assert "substantial assistance from coding models" in readme
     assert "independent security audit" in readme
-    assert (root / "SECURITY.md").is_file()
+    security = (root / "SECURITY.md").read_text(encoding="utf-8").lower()
+    assert "private vulnerability reporting" in security
 
 
 def test_github_actions_are_pinned_to_commits() -> None:

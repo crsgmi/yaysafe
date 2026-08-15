@@ -33,11 +33,10 @@ dev = ["mypy>=1.10,<3", "pytest>=8,<10", "ruff>=0.6,<1"]
 yaysafe = "yaysafe.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/dahekker/yaysafe"
-Changelog = "https://github.com/dahekker/yaysafe/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/dahekker/yaysafe#readme"
-Issues = "https://github.com/dahekker/yaysafe/issues"
-Source = "https://github.com/dahekker/yaysafe"
+Homepage = "https://github.com/crsgmi/yaysafe"
+Documentation = "https://github.com/crsgmi/yaysafe#readme"
+Issues = "https://github.com/crsgmi/yaysafe/issues"
+Source = "https://github.com/crsgmi/yaysafe"
 
 [tool.setuptools.packages.find]
 include = ["yaysafe*"]

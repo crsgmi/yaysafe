@@ -178,7 +178,6 @@ def test_reviewed_handoff_uses_isolated_yay_configuration(
 
 
 def test_passthrough_keeps_original_array(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    monkeypatch.setattr("os.geteuid", lambda: 1000)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     captured = []
     monkeypatch.setattr("yaysafe.cli.run_yay", lambda args: captured.append(args) or 7)
@@ -189,7 +188,6 @@ def test_passthrough_keeps_original_array(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_redirected_prompt_output_stays_line_oriented(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("os.geteuid", lambda: 1000)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setattr("sys.stdin", StringIO("n\n"))
@@ -203,7 +201,6 @@ def test_redirected_prompt_output_stays_line_oriented(
 
 
 def test_interactive_llm_model_selection(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    monkeypatch.setattr("os.geteuid", lambda: 1000)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     answers = iter(["1", "http://127.0.0.1:1234", "2"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -231,7 +228,6 @@ def test_openai_setup_uses_preset_and_hidden_key(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("os.geteuid", lambda: 1000)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     answers = iter(["3", "", "1"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))

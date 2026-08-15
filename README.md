@@ -1,178 +1,261 @@
 # yaysafe
 
-> **Experimental software.** yaysafe was built with substantial AI assistance ("vibecoded") and
-> has not received an independent security audit. It is an extra review layer, not proof that an
-> AUR package is safe.
+Security review for AUR packages before installation.
 
-yaysafe is a security-focused wrapper around [`yay`](https://github.com/Jguer/yay). It retrieves
-AUR build files, scans them without executing them, asks an optional configured LLM for contextual
-analysis, applies your risk policy, and then hands the terminal back to the real `yay` process.
-
-```text
-yaysafe preparation → static scan → LLM review → policy decision → yay
-```
-
-The interface is deliberately small and follows familiar `yay`/Arch terminal conventions.
-
-## Requirements
-
-yaysafe does not check for a specific Linux distribution. It needs:
-
-- Python 3.11 or newer
-- `git`
-- `yay` and the package-management environment it expects
-- optionally, LM Studio, Ollama, OpenAI, Anthropic, or another OpenAI-compatible endpoint
-
-Arch Linux and Arch-derived systems are the usual environments because that is where `yay` is
-used. The Python runtime itself has no third-party dependencies.
-
-Never run yaysafe, yay, or package builds as root.
-
-## Install
-
-Using `pipx`:
-
-```bash
-git clone https://github.com/dahekker/yaysafe.git
-cd yaysafe
-pipx install .
-yaysafe doctor
-```
-
-If `yaysafe` is not on `PATH`, run `pipx ensurepath`, open a new shell, and try again.
-
-The included `PKGBUILD` is for future AUR packaging. Do not use it until a matching public release
-tag exists.
-
-## Use
+`yaysafe` is a wrapper around [`yay`](https://github.com/Jguer/yay) that analyzes AUR build files before allowing an installation to continue. It combines deterministic static analysis with optional LLM-assisted review to identify potentially dangerous or unusual package behavior.
 
 ```bash
 yaysafe -S package-name
-yaysafe -S package1 package2
-yaysafe -Syu
-
-yaysafe scan package
-yaysafe scan package --no-llm
-yaysafe scan package --no-cache
-yaysafe scan package --verbose
-yaysafe scan package --json
-
-yaysafe doctor
-yaysafe config
-yaysafe config llm
 ```
 
-Removal, search, information, and other non-build operations pass through to `yay`:
+The goal is simple: make reviewing AUR packages easier without changing the normal `yay` workflow.
+
+## How it works
+
+When you run:
 
 ```bash
-yaysafe -R package
-yaysafe -Ss query
-yaysafe -Si package
+yaysafe -S package-name
 ```
 
-Use `yaysafe -S package` for installation. Bare `yaysafe package` is refused because yay's
-interactive selection does not reveal the final package early enough to review it safely.
+yaysafe:
 
-Running `yaysafe` without arguments opens a small line-oriented menu.
+1. Retrieves the package's AUR build files.
+2. Analyzes the `PKGBUILD`, install hooks, scripts, service files, patches, and other relevant files.
+3. Runs deterministic security checks.
+4. Optionally sends the package contents and static findings to a configured LLM for contextual analysis.
+5. Produces a risk verdict.
+6. Continues with `yay` only according to the configured security policy.
+
+Typical output:
+
+```text
+:: Retrieving AUR build files...
+:: Running yaysafe security analysis...
+
+==> package-name
+    Risk        LOW
+    Confidence  95%
+    Model       local-model
+    Sources     github.com
+
+:: No significant security concerns detected.
+:: Continuing with yay...
+```
+
+For higher-risk packages, yaysafe displays the relevant findings and asks before continuing.
+
+## What it looks for
+
+The static scanner looks for security-relevant behavior including:
+
+- unexpected writes to the live filesystem
+- credential and private-key access
+- suspicious network activity
+- remote code execution
+- shell persistence
+- dangerous install hooks
+- setuid and Linux capability changes
+- obfuscated or dynamically constructed commands
+- suspicious use of temporary files
+- package-controlled systemd behavior
+- execution of downloaded content
+
+The scanner is Arch-aware. Operations involving `$pkgdir` and `$srcdir`, for example, are evaluated differently from equivalent operations against the live system.
+
+The LLM receives the static findings as evidence and provides additional context. This helps distinguish genuinely dangerous behavior from legitimate packaging patterns that happen to involve security-sensitive primitives.
+
+## Risk levels
+
+| Risk | Meaning |
+| --- | --- |
+| `INFO` | Security-relevant information with little or no immediate concern |
+| `LOW` | No significant security concern identified |
+| `MEDIUM` | Behavior worth reviewing before installation |
+| `HIGH` | Significant security concern; aborting is recommended |
+| `CRITICAL` | Strong evidence of extremely dangerous behavior |
+| `UNKNOWN` | Analysis could not produce a reliable verdict |
+
+A LOW result is **not proof that a package is safe**, and a HIGH result is **not proof that a package is malicious**.
+
+yaysafe is an additional review layer, not a sandbox, antivirus product, or replacement for checking package provenance.
+
+## Requirements
+
+- Linux
+- Python 3.11+
+- `git`
+- `yay`
+- an OpenAI-compatible LLM endpoint if LLM analysis is enabled
+
+Arch Linux is the primary target because yaysafe is designed around `yay` and the AUR.
+
+## Installation
+
+### From source
+
+```bash
+git clone https://github.com/crsgmi/yaysafe.git
+cd yaysafe
+python -m pip install .
+```
+
+For an isolated installation:
+
+```bash
+pipx install .
+```
+
+Verify the installation:
+
+```bash
+yaysafe doctor
+```
+
+### AUR
+
+AUR installation instructions will be added once an official AUR package is published.
 
 ## LLM setup
 
-The default is local LM Studio at:
+yaysafe can use an OpenAI-compatible API endpoint, making it suitable for local inference servers such as LM Studio.
+
+Open the configuration:
+
+```bash
+yaysafe config edit
+```
+
+Configure the endpoint and model for your environment.
+
+For example, a local OpenAI-compatible server may use:
 
 ```text
 http://127.0.0.1:1234/v1
 ```
 
-Run:
+The exact endpoint and model depend on your inference server.
+
+Check the resulting configuration with:
 
 ```bash
-yaysafe config llm
+yaysafe doctor
 ```
 
-Choose a numbered provider:
+### Remote APIs
 
-```text
-1  LM Studio (local)
-2  Ollama (local)
-3  OpenAI
-4  Anthropic
-5  Custom OpenAI-compatible
-```
+Remote OpenAI-compatible endpoints can also be configured.
 
-Accept or change its endpoint, enter an API key when required, then choose a model from the
-numbered list discovered from that provider. API-key input is hidden, the config file is private to
-your user, and `yaysafe config` always redacts the key. Anthropic uses its native Messages API; the
-other choices use OpenAI-compatible model and chat-completion routes.
+Be aware that enabling a remote provider may transmit AUR package contents to that provider for analysis.
 
-The response timeout is based on inactivity. A model may generate for longer than the configured
-timeout as long as the stream keeps producing data or heartbeat events.
+API credentials are configuration data and should never be committed to a repository.
 
-## Configuration
+## Usage
+
+Install through the normal guarded workflow:
 
 ```bash
-yaysafe config          # show config with API key redacted
-yaysafe config edit     # open it in your editor
-yaysafe config path
+yaysafe -S package-name
+```
+
+Scan without installing:
+
+```bash
+yaysafe scan package-name
+```
+
+Show configuration:
+
+```bash
+yaysafe config show
+```
+
+Edit configuration:
+
+```bash
+yaysafe config edit
+```
+
+Validate configuration:
+
+```bash
 yaysafe config validate
 ```
 
-Paths follow XDG conventions:
-
-```text
-$XDG_CONFIG_HOME/yaysafe/config.toml
-$XDG_CACHE_HOME/yaysafe/
-```
-
-They fall back to `~/.config/yaysafe/` and `~/.cache/yaysafe/`.
-
-The default policy allows INFO/LOW, confirms MEDIUM/HIGH/UNKNOWN with No as the default answer, and
-blocks CRITICAL.
-
-## What is scanned
-
-yaysafe inspects PKGBUILDs, install hooks, shell scripts, service units, patches, and other relevant
-text. It distinguishes ordinary packaging under `$pkgdir` and `$srcdir` from direct host changes.
-
-Static rules produce evidence. The LLM supplies most contextual classification, while a small set
-of hard rules prevents clear credential theft, destructive host behavior, or direct remote-code
-execution from being silently downgraded.
-
-Before `yay` continues, yaysafe checks that the reviewed repository content has not changed and
-uses an isolated handoff that prevents new Git retrieval or post-review editing.
-
-## Privacy and safety
-
-- Retrieved package code is treated as hostile data and is never sourced or executed during scan.
-- yaysafe never invokes `makepkg` during analysis.
-- Package contents are sent only to the LLM endpoint you configure. Selecting OpenAI, Anthropic, or
-  another remote endpoint sends the inspected package files off the machine and may incur charges.
-- HTTP redirects are refused for LLM requests.
-- Untrusted terminal text is sanitized.
-- There is no telemetry, analytics, or crash reporting.
-
-Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
-
-## Limitations
-
-**A LOW risk result does not prove that a package is safe. A HIGH risk result does not prove that a
-package is malicious.** Static rules and models can both be wrong. yaysafe is not a sandbox,
-antivirus product, cryptographic verification system, or replacement for reviewing package
-provenance. It does not recursively audit every upstream source archive downloaded by a build.
-
-## Development
+Check dependencies and configuration:
 
 ```bash
-python -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]' 'build>=1.2,<2'
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy yaysafe
+yaysafe doctor
 ```
 
-Fixture repositories under `tests/fixtures/` are hostile text samples. Tests may read them but must
-never execute them.
+For all available commands:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md),
-[Publishing to GitHub](docs/PUBLISHING_TO_GITHUB.md), and
-[Releasing yaysafe](docs/RELEASING.md).
+```bash
+yaysafe --help
+```
+
+## Security model
+
+yaysafe treats package repository contents as untrusted input.
+
+Analysis is designed around a strict review-before-build boundary: package-controlled build files are inspected as data rather than executed as part of the security analysis.
+
+The security decision combines two components:
+
+### Static analysis
+
+Deterministic rules identify concrete security-sensitive operations and provide evidence for the final verdict.
+
+Some findings act as hard safety constraints where allowing contextual analysis to completely dismiss them would be inappropriate.
+
+### Contextual analysis
+
+The configured LLM evaluates the package as a whole and interprets static findings in context.
+
+For example:
+
+```bash
+chmod 4755 "$pkgdir/opt/example/helper"
+```
+
+is materially different from:
+
+```bash
+chmod 4755 /usr/local/bin/example
+```
+
+Both are security-relevant, but they do not represent the same behavior.
+
+The LLM helps make that distinction while deterministic checks preserve safety boundaries for particularly dangerous operations.
+
+## Prompt injection
+
+Package contents may contain arbitrary text, including instructions deliberately written to manipulate an LLM.
+
+yaysafe treats package contents as untrusted data and structures LLM requests so package-provided instructions are not considered authoritative.
+
+This reduces prompt-injection risk but cannot guarantee that every model will behave correctly.
+
+Deterministic security checks therefore remain part of the verdict process.
+
+## Privacy
+
+With a local inference endpoint, LLM analysis can remain entirely on the local machine.
+
+When a remote endpoint is configured, package contents required for analysis may be sent to that provider.
+
+yaysafe does not require a cloud LLM.
+
+## Project status
+
+yaysafe is experimental software and has not received an independent security audit.
+
+The project is developed with substantial assistance from coding models, with automated tests and manual testing used to validate behavior. This does not imply that the implementation or security analysis is error-free.
+
+False positives and false negatives are possible.
+
+For security vulnerabilities in yaysafe itself, see [SECURITY.md](SECURITY.md).
+
+## License
+
+yaysafe is released under the [MIT License](LICENSE).

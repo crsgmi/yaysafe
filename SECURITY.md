@@ -1,41 +1,48 @@
-# Security policy
+# Security Policy
 
-## Project status
-
-yaysafe is experimental, AI-assisted software and has not received an independent security audit.
-It is an additional review layer, not a sandbox or proof that an AUR package is safe.
-
-Security fixes are provided on a best-effort basis for the latest tagged release. Pre-release
-versions may change without backward-compatibility guarantees.
+yaysafe is security-sensitive software. Vulnerabilities that affect the integrity of its analysis or allow package-controlled content to escape the intended review boundary are particularly important.
 
 ## Reporting a vulnerability
 
-Please do not disclose an exploitable vulnerability in a public issue or pull request.
+Please do not disclose exploitable vulnerabilities through a public GitHub issue.
 
-Use GitHub's **Report a vulnerability** form under the repository's Security tab. Repository
-administrators should enable private vulnerability reporting before announcing the project. If
-that form is unavailable, open a public issue containing no vulnerability details and ask the
-maintainer for a private contact method.
+Use GitHub's private vulnerability reporting feature from the repository's **Security** tab instead.
 
-Particularly important reports include any way to:
+A useful report should include:
 
-- execute a retrieved PKGBUILD, install hook, script, fixture, or other package content during
-  analysis;
-- substitute unreviewed content between analysis and the final yay build;
-- expose an API key, credential, private package content, or local file;
-- send package content anywhere except the configured LLM endpoint;
-- inject terminal control sequences into displayed output;
-- bypass a hard deterministic rule or silently convert an UNKNOWN result into a safe result;
-- escape repository size, symlink, path, or cache integrity boundaries.
+- the affected yaysafe version or commit
+- a description of the vulnerability
+- steps to reproduce it
+- the expected security impact
+- relevant environment information
+- a minimal synthetic test case when possible
 
-Include the affected version, operating-system/package-manager environment, yay/Python versions, a
-minimal reproducer using synthetic data, and the expected impact. Do not include real credentials,
-private keys, or other people's private package contents.
+Do not include real credentials, private keys, access tokens, or other people's private information.
 
-The maintainer will acknowledge and investigate reports as availability permits. No response or
-remediation deadline is guaranteed for this volunteer project.
+## Security-sensitive areas
 
-## Coordinated disclosure
+Reports are especially useful when they involve:
 
-Please allow time for a fix and release before publishing details. Once a fix is available, the
-maintainer may publish a GitHub security advisory describing affected versions and mitigations.
+- execution of package-controlled code during analysis
+- bypassing the review-before-build boundary
+- arbitrary local file access
+- credential or secret disclosure
+- command or shell injection
+- terminal escape-sequence injection
+- prompt injection that bypasses deterministic safety constraints
+- incorrect handling of HIGH or CRITICAL findings
+- repository mutation between analysis and installation
+- unintended transmission of data to an LLM provider
+- cache or verdict integrity issues
+
+## Supported versions
+
+Security fixes are provided on a best-effort basis for the latest release.
+
+yaysafe is currently pre-1.0 software, so older releases may not receive fixes.
+
+## Disclosure
+
+Please allow reasonable time to investigate and fix a reported vulnerability before publishing technical details.
+
+Confirmed vulnerabilities may be documented through GitHub Security Advisories after a fix is available.

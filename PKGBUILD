@@ -3,7 +3,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc='Experimental security review wrapper for yay and AUR packages'
 arch=('any')
-url='https://github.com/dahekker/yaysafe'
+url='https://github.com/crsgmi/yaysafe'
 license=('MIT')
 depends=('python>=3.11' 'yay' 'git')
 makedepends=('python-build' 'python-installer' 'python-pytest' 'python-setuptools' 'python-wheel')
