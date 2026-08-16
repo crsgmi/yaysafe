@@ -244,22 +244,83 @@ def _confirmation(ui: UI, verdict: Verdict, static: StaticResult) -> bool:
 
 
 def _enforce_policy(
-    ui: UI, results: list[tuple[Verdict, StaticResult]], config: Config
+    ui: UI,
+    results: list[tuple[Verdict, StaticResult]],
+    config: Config,
+    *,
+    update_count: int = 0,
 ) -> int | None:
-    for verdict, static in results:
+    actions = [policy_action(verdict.risk, config.policy) for verdict, _ in results]
+    update_mode = update_count > 0
+    if update_mode and len(results) > 1:
         print(file=ui.out)
-        ui.verdict(verdict)
-        action = policy_action(verdict.risk, config.policy)
-        if action == PolicyAction.BLOCK:
+        ui.section("AUR update security summary")
+        width = max(len(verdict.package) for verdict, _ in results) + 4
+        for verdict, _ in results:
+            print(f"    {verdict.package:<{width}}{ui.risk(verdict.risk)}", file=ui.out)
+        for (verdict, _), action in zip(results, actions, strict=True):
+            if action != PolicyAction.ALLOW:
+                print(file=ui.out)
+                ui.verdict(verdict)
+    else:
+        for verdict, _ in results:
             print(file=ui.out)
-            ui.section("Installation blocked by policy.")
-            if verdict.risk == Risk.CRITICAL:
-                ui.warning(
-                    "set policy.block_critical = false only after reviewing the package files"
-                )
-                return EXIT_BLOCKED
-            return EXIT_UNKNOWN
-        if action == PolicyAction.CONFIRM:
+            ui.verdict(verdict)
+
+    if update_mode:
+        suffix = "" if update_count == 1 else "s"
+        print(file=ui.out)
+        ui.section(f"{update_count} AUR update{suffix} analyzed.")
+
+    blocked = [
+        verdict
+        for (verdict, _), action in zip(results, actions, strict=True)
+        if action == PolicyAction.BLOCK
+    ]
+    if blocked:
+        print(file=ui.out)
+        ui.section(
+            "Update blocked by policy." if update_mode else "Installation blocked by policy."
+        )
+        if update_mode:
+            ui.warning(
+                "the entire yay transaction was stopped; yaysafe does not attempt partial upgrades"
+            )
+        elif any(verdict.risk == Risk.CRITICAL for verdict in blocked):
+            ui.warning("set policy.block_critical = false only after reviewing the package files")
+        return (
+            EXIT_UNKNOWN
+            if all(verdict.risk == Risk.UNKNOWN for verdict in blocked)
+            else EXIT_BLOCKED
+        )
+
+    confirmations = [
+        (verdict, static)
+        for (verdict, static), action in zip(results, actions, strict=True)
+        if action == PolicyAction.CONFIRM
+    ]
+    if update_mode and confirmations:
+        risks = {verdict.risk for verdict, _ in confirmations}
+        if Risk.HIGH in risks or Risk.CRITICAL in risks:
+            ui.section("yaysafe recommends aborting this update.")
+        elif Risk.MEDIUM in risks:
+            ui.section("yaysafe recommends reviewing this update.")
+        else:
+            ui.section("Package safety could not be determined.")
+        try:
+            answer = _prompt(ui, "\n:: Continue with the full update? [y/N] ").strip().lower()
+        except EOFError:
+            answer = ""
+        if answer not in {"y", "yes"}:
+            return (
+                EXIT_UNKNOWN
+                if all(verdict.risk == Risk.UNKNOWN for verdict, _ in confirmations)
+                else EXIT_BLOCKED
+            )
+        return None
+
+    for verdict, static in confirmations:
+        if not update_mode:
             if verdict.risk == Risk.MEDIUM:
                 ui.section("yaysafe recommends reviewing this package.")
             elif verdict.risk in {Risk.HIGH, Risk.CRITICAL}:
@@ -268,6 +329,24 @@ def _enforce_policy(
                 ui.section("Package safety could not be determined.")
             if not _confirmation(ui, verdict, static):
                 return EXIT_UNKNOWN if verdict.risk == Risk.UNKNOWN else EXIT_BLOCKED
+    return None
+
+
+def _enforce_unknown_update_policy(ui: UI, config: Config, error: Exception) -> int | None:
+    print(file=ui.out)
+    ui.status("Risk", "UNKNOWN")
+    ui.warning(str(error))
+    ui.section("AUR update security analysis could not be completed.")
+    if policy_action(Risk.UNKNOWN, config.policy) == PolicyAction.BLOCK:
+        ui.section("Update blocked by policy.")
+        return EXIT_UNKNOWN
+    try:
+        answer = _prompt(ui, "\n:: Continue without AUR security analysis? [y/N] ").strip().lower()
+    except EOFError:
+        answer = ""
+    if answer not in {"y", "yes"}:
+        return EXIT_UNKNOWN
+    ui.warning("continuing with unreviewed AUR updates by explicit user override")
     return None
 
 
@@ -280,9 +359,28 @@ def handle_yay(args: list[str], config: Config, ui: UI) -> int:
                 "yaysafe -S <package>"
             )
         return run_yay(args)
-    targets = aur_targets(invocation)
-    if not targets:
+    if invocation.sysupgrade:
+        ui.section("Searching for AUR updates...")
+    try:
+        targets = aur_targets(invocation)
+    except YayError as exc:
+        if not invocation.sysupgrade:
+            raise
+        blocked = _enforce_unknown_update_policy(ui, config, exc)
+        if blocked is not None:
+            return blocked
+        ui.section("Continuing with yay...")
         return run_yay(args)
+    if not targets:
+        if invocation.sysupgrade:
+            ui.section("No AUR updates require security analysis.")
+            ui.section("Continuing with yay...")
+        return run_yay(args)
+    if invocation.sysupgrade:
+        noun = "update" if not invocation.targets else "package"
+        suffix = "" if len(targets) == 1 else "s"
+        verb = "requires" if len(targets) == 1 else "require"
+        ui.section(f"{len(targets)} AUR {noun}{suffix} {verb} security analysis.")
     yay_options = args[: args.index("--")] if "--" in args else args
     if any(option == "--save" or option.startswith("--save=") for option in yay_options):
         raise AURError(
@@ -301,17 +399,31 @@ def handle_yay(args: list[str], config: Config, ui: UI) -> int:
         workspace = Path(raw_temp)
         builddir = workspace / "packages"
         builddir.mkdir(mode=0o700)
-        results = _retrieve_and_analyze(
-            targets,
-            builddir,
-            config,
+        try:
+            results = _retrieve_and_analyze(
+                targets,
+                builddir,
+                config,
+                ui,
+                use_llm=True,
+                use_cache=True,
+                quiet=False,
+                aur_client=aur_client,
+            )
+        except (AURError, ScanError) as exc:
+            if not invocation.sysupgrade:
+                raise
+            blocked = _enforce_unknown_update_policy(ui, config, exc)
+            if blocked is not None:
+                return blocked
+            ui.section("Continuing with yay...")
+            return run_yay(args)
+        blocked = _enforce_policy(
             ui,
-            use_llm=True,
-            use_cache=True,
-            quiet=False,
-            aur_client=aur_client,
+            results,
+            config,
+            update_count=len(targets) if invocation.sysupgrade else 0,
         )
-        blocked = _enforce_policy(ui, results, config)
         if blocked is not None:
             return blocked
         for _, static in results:
@@ -671,6 +783,7 @@ Security-focused wrapper around yay.
 
 Usage:
   yaysafe -S PACKAGE...          scan AUR content, then continue with yay
+  yaysafe -Syu                   scan pending AUR upgrades, then continue with yay
   yaysafe scan PACKAGE [OPTIONS] scan without installing
   yaysafe config [COMMAND]       configure LLM, show, edit, locate, or validate
   yaysafe doctor                 check local readiness

@@ -8,7 +8,7 @@ Security review for AUR packages before installation.
 yaysafe -S package-name
 ```
 
-The goal is simple: make reviewing AUR packages easier without changing the normal `yay` workflow.
+The goal is simple: make reviewing AUR packages easier without replacing the normal `yay` workflow.
 
 ## How it works
 
@@ -44,6 +44,18 @@ Typical output:
 ```
 
 For higher-risk packages, yaysafe displays the relevant findings and asks before continuing.
+
+System upgrades are guarded too:
+
+```bash
+yaysafe -Syu
+yaysafe -Syu --devel
+yaysafe -Sua
+```
+
+yaysafe asks yay which installed AUR packages have upgrades, retrieves their current AUR
+repositories, and scans those packages before handing the original update operation back to yay.
+Official repository updates are not scanned or sent to the LLM.
 
 ## What it looks for
 
@@ -86,7 +98,7 @@ yaysafe is an additional review layer, not a sandbox, antivirus product, or repl
 - Python 3.11+
 - `git`
 - `yay`
-- an OpenAI-compatible LLM endpoint if LLM analysis is enabled
+- a configured local or remote LLM provider if LLM analysis is enabled
 
 Arch Linux is the primary target because yaysafe is designed around `yay` and the AUR.
 
@@ -124,15 +136,18 @@ AUR installation instructions will be added once an official AUR package is publ
 
 ## LLM setup
 
-yaysafe can use an OpenAI-compatible API endpoint, making it suitable for local inference servers such as LM Studio.
+Select LM Studio, Ollama, OpenAI, Anthropic, or a custom OpenAI-compatible endpoint:
 
-Open the configuration:
+```bash
+yaysafe config llm
+```
+
+The setup prompts for an endpoint and API key when needed, discovers available models, and lets
+you select a model by number. You can also edit the TOML directly:
 
 ```bash
 yaysafe config edit
 ```
-
-Configure the endpoint and model for your environment.
 
 For example, a local OpenAI-compatible server may use:
 
@@ -150,7 +165,7 @@ yaysafe doctor
 
 ### Remote APIs
 
-Remote OpenAI-compatible endpoints can also be configured.
+Remote providers can also be configured.
 
 Be aware that enabling a remote provider may transmit AUR package contents to that provider for analysis.
 
@@ -163,6 +178,20 @@ Install through the normal guarded workflow:
 ```bash
 yaysafe -S package-name
 ```
+
+Upgrade the system while scanning pending AUR upgrades:
+
+```bash
+yaysafe -Syu
+yaysafe -Syyu
+yaysafe -Syu --devel
+yaysafe -Sua
+```
+
+Update scanning uses the same verdict policy as first-time installs. `--noconfirm` is passed to
+yay, but it never answers yaysafe's security prompts or bypasses a yaysafe policy block. If any
+AUR update is blocked, yaysafe stops the entire transaction rather than attempting a partial
+upgrade.
 
 Scan without installing:
 
@@ -205,6 +234,11 @@ yaysafe --help
 yaysafe treats package repository contents as untrusted input.
 
 Analysis is designed around a strict review-before-build boundary: package-controlled build files are inspected as data rather than executed as part of the security analysis.
+
+For reviewed installs and upgrades, yaysafe keeps the freshly retrieved repositories in an
+isolated temporary build directory, verifies their content digests again after analysis, and
+prevents yay from downloading replacement Git content during that handoff. A newly discovered
+AUR update that was not reviewed therefore causes the guarded handoff to stop.
 
 The security decision combines two components:
 
@@ -259,6 +293,12 @@ yaysafe is experimental software and has not received an independent security au
 The project is developed with substantial assistance from coding models, with automated tests and manual testing used to validate behavior. This does not imply that the implementation or security analysis is error-free.
 
 False positives and false negatives are possible.
+
+Update discovery depends on yay and the AUR being reachable. A discovery or retrieval failure is
+reported as `UNKNOWN` and defaults to No. If policy permits confirmation, the user can explicitly
+continue without AUR analysis; doing so gives up the reviewed-content handoff guarantee. An AUR
+repository can also reference changing upstream sources, especially for VCS packages; yaysafe
+reviews the AUR build repository, not every future state of those upstream sources.
 
 For security vulnerabilities in yaysafe itself, see [SECURITY.md](SECURITY.md).
 

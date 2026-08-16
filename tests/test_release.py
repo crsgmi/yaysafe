@@ -11,11 +11,11 @@ from scripts.check_release import project_versions, validate_release
 def test_release_versions_are_aligned() -> None:
     versions = project_versions()
     assert versions == {
-        "pyproject.toml": "0.1.1",
-        "yaysafe/__init__.py": "0.1.1",
-        "PKGBUILD": "0.1.1",
+        "pyproject.toml": "0.2.0",
+        "yaysafe/__init__.py": "0.2.0",
+        "PKGBUILD": "0.2.0",
     }
-    assert validate_release("v0.1.1") == "0.1.1"
+    assert validate_release("v0.2.0") == "0.2.0"
 
 
 def test_release_tag_mismatch_is_rejected(tmp_path: Path) -> None:

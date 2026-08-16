@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -37,6 +38,7 @@ OPTIONS_WITH_VALUE = {
     "--pacman",
     "--print-format",
     "--root",
+    "--requestsplitn",
     "--searchby",
     "--sortby",
     "--sudo",
@@ -44,6 +46,21 @@ OPTIONS_WITH_VALUE = {
     "--sysroot",
 }
 SHORT_OPTIONS_WITH_VALUE = {"-b", "-r"}
+UPDATE_QUERY_OPTIONS_WITH_VALUE = {
+    "--arch",
+    "--aurrpcurl",
+    "--aururl",
+    "--config",
+    "--dbpath",
+    "--ignore",
+    "--ignoregroup",
+    "--pacman",
+    "--requestsplitn",
+    "--root",
+    "--sysroot",
+}
+UPDATE_QUERY_FLAGS = {"--devel"}
+_PACKAGE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9@._+:-]*")
 
 
 class YayError(RuntimeError):
@@ -136,27 +153,75 @@ def aur_targets(invocation: YayInvocation) -> list[str]:
         if target.startswith("aur/") or not official_target_exists(name):
             candidates.append(name)
     if invocation.sysupgrade:
-        candidates.extend(aur_upgrades())
+        candidates.extend(aur_upgrades(invocation.args))
     return list(dict.fromkeys(candidates))
 
 
-def aur_upgrades() -> list[str]:
+def update_query_options(args: list[str]) -> list[str]:
+    """Forward only options that can change yay's AUR update candidate set."""
+    before_separator = args[: args.index("--")] if "--" in args else args
+    forwarded: list[str] = []
+    index = 0
+    while index < len(before_separator):
+        argument = before_separator[index]
+        if argument in UPDATE_QUERY_FLAGS:
+            forwarded.append(argument)
+        elif argument in UPDATE_QUERY_OPTIONS_WITH_VALUE:
+            if index + 1 >= len(before_separator):
+                raise YayError(f"{argument} requires a value")
+            forwarded.extend((argument, before_separator[index + 1]))
+            index += 1
+        elif any(argument.startswith(option + "=") for option in UPDATE_QUERY_OPTIONS_WITH_VALUE):
+            forwarded.append(argument)
+        elif argument in SHORT_OPTIONS_WITH_VALUE:
+            if index + 1 >= len(before_separator):
+                raise YayError(f"{argument} requires a value")
+            forwarded.extend((argument, before_separator[index + 1]))
+            index += 1
+        elif any(
+            argument.startswith(option) and argument != option
+            for option in SHORT_OPTIONS_WITH_VALUE
+        ):
+            forwarded.append(argument)
+        index += 1
+    return forwarded
+
+
+def aur_upgrades(args: list[str] | None = None) -> list[str]:
     if not shutil.which("yay"):
         raise FileNotFoundError("yay is not installed")
+    query = [
+        "yay",
+        "-Qua",
+        "--quiet",
+        "--color=never",
+        *update_query_options(args or []),
+    ]
     try:
         result = subprocess.run(
-            ["yay", "-Qua", "--quiet", "--color=never"],
+            query,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=120,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise YayError(f"could not determine pending AUR upgrades: {exc}") from exc
-    if result.returncode not in (0, 1):
+    if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
+        return []
+    if result.returncode != 0:
         detail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "yay failed"
         raise YayError(f"could not determine pending AUR upgrades: {detail}")
-    return [line.strip().split()[0] for line in result.stdout.splitlines() if line.strip()]
+    upgrades: list[str] = []
+    for raw_line in result.stdout.splitlines():
+        name = raw_line.strip()
+        if not name:
+            continue
+        if not _PACKAGE_NAME.fullmatch(name):
+            raise YayError("yay returned unexpected AUR update output")
+        upgrades.append(name)
+    return list(dict.fromkeys(upgrades))
 
 
 def run_yay(args: list[str], *, env: dict[str, str] | None = None) -> int:

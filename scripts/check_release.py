@@ -39,7 +39,7 @@ def validate_release(tag: str = "", root: Path = ROOT) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="validate yaysafe release version alignment")
-    parser.add_argument("tag", nargs="?", default="", help="optional Git tag, such as v0.1.1")
+    parser.add_argument("tag", nargs="?", default="", help="optional Git tag, such as v0.2.0")
     args = parser.parse_args()
     try:
         version = validate_release(args.tag)
